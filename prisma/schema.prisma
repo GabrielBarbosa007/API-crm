@@ -7,13 +7,26 @@ generator client {
 }
 
 model User {
-  id          String    @id @default(uuid())
-  name        String
-  email       String    @unique
-  password    String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  workspaceId String
-  createdAt   DateTime  @default(now())
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  passwordHash         String    @map("password")
+  name                 String
+  avatar               String?
+  activeOrganizationId String?
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+  isActive             Boolean   @default(true)
+  lastLoginAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  workspace            Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId          String
+
+  memberships          OrganizationMember[]
+  invitesSent          OrganizationInvite[]
+
+  @@index([email])
 }
 
 model Workspace {
@@ -32,6 +45,8 @@ model Conversation {
   phone       String
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
   messages    Message[]
   lead        Lead?
   createdAt   DateTime  @default(now())
@@ -53,6 +68,8 @@ model Lead {
   temperature    String?
   workspaceId    String
   workspace      Workspace    @relation(fields: [workspaceId], references: [id])
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   conversationId String       @unique
   deal           Deal?
@@ -65,6 +82,8 @@ model Deal {
   value       Float?
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
   lead        Lead      @relation(fields: [leadId], references: [id])
   leadId      String    @unique
   createdAt   DateTime  @default(now())
@@ -75,5 +94,114 @@ model WhatsappAccount {
   phoneNumber String
   token       String
   workspaceId String
+  organizationId String?
   createdAt   DateTime @default(now())
+}
+
+model Plan {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  displayName String
+  price       Decimal  @default(0)
+  maxUsers        Int @default(2)
+  maxDeals        Int @default(50)
+  maxPipelines    Int @default(1)
+  maxContacts     Int @default(500)
+  maxAutomations  Int @default(5)
+  features    Json     @default("[]")
+  organizations Organization[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  logo        String?
+  planId      String
+  plan        Plan     @relation(fields: [planId], references: [id])
+  whatsappPhoneId    String?
+  whatsappToken      String?
+  whatsappVerified   Boolean @default(false)
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  members     OrganizationMember[]
+  invites     OrganizationInvite[]
+  pipelines   Pipeline[]
+  contacts    Contact[]
+  leads       Lead[]
+  deals       Deal[]
+  conversations Conversation[]
+  @@index([slug])
+}
+
+model OrganizationMember {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role            Role     @default(MEMBER)
+  permissions     Json?
+  isActive        Boolean  @default(true)
+  joinedAt        DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model OrganizationInvite {
+  id              String   @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email           String
+  role            Role     @default(MEMBER)
+  token           String   @unique
+  invitedById     String
+  invitedBy       User     @relation(fields: [invitedById], references: [id])
+  status          InviteStatus @default(PENDING)
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  acceptedAt      DateTime?
+  @@unique([organizationId, email])
+  @@index([token])
+  @@index([email])
+}
+
+model Pipeline {
+  id             String   @id @default(uuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Contact {
+  id             String   @id @default(uuid())
+  name           String?
+  phone          String?
+  email          String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+  VIEWER
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
 }
