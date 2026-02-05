@@ -5,6 +5,7 @@ export interface JwtPayload {
   email: string;
   workspaceId: string;
   organizationId?: string | null;
+  organizationMemberId?: string | null;
 }
 
 export const GetUser = createParamDecorator(
@@ -14,6 +15,11 @@ export const GetUser = createParamDecorator(
   ): JwtPayload | string | null => {
     const request = ctx.switchToHttp().getRequest();
     const user = request.user as JwtPayload;
+
+    // Adicionar organizationMemberId do middleware
+    if (request.organizationMember) {
+      user.organizationMemberId = request.organizationMember.id;
+    }
 
     if (data) {
       return user?.[data] ?? null;

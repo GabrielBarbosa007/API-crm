@@ -5,12 +5,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { JwtService } from '@nestjs/jwt';
 import { CreateOrganizationDto, OrganizationStatsDto, UpdateOrganizationDto } from './dto';
 import { Prisma, Role } from '@prisma/client';
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private jwt: JwtService,
+  ) {}
 
   async findAllByUser(userId: string) {
     const memberships = await this.prisma.organizationMember.findMany({
@@ -60,6 +64,14 @@ export class OrganizationsService {
     const slug = dto.slug ? dto.slug : await this.generateUniqueSlug(dto.name);
     const plan = await this.getDefaultPlan();
 
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     const organization = await this.prisma.organization.create({
       data: {
         name: dto.name,
@@ -72,6 +84,7 @@ export class OrganizationsService {
           },
         },
       },
+      include: { plan: true },
     });
 
     await this.prisma.user.update({
@@ -79,7 +92,20 @@ export class OrganizationsService {
       data: { activeOrganizationId: organization.id },
     });
 
-    return organization;
+    // Gerar novo token JWT com a nova organizacao
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      workspaceId: user.workspaceId,
+      organizationId: organization.id,
+    };
+
+    const accessToken = this.jwt.sign(payload);
+
+    return {
+      access_token: accessToken,
+      organization,
+    };
   }
 
   async update(orgId: string, dto: UpdateOrganizationDto) {
@@ -152,6 +178,12 @@ export class OrganizationsService {
       where: {
         userId_organizationId: { userId, organizationId: orgId },
       },
+      include: {
+        user: true,
+        organization: {
+          include: { plan: true },
+        },
+      },
     });
 
     if (!membership || !membership.isActive) {
@@ -163,7 +195,20 @@ export class OrganizationsService {
       data: { activeOrganizationId: orgId },
     });
 
-    return this.findById(orgId);
+    // Gerar novo token JWT com a nova organizacao
+    const payload = {
+      sub: membership.user.id,
+      email: membership.user.email,
+      workspaceId: membership.user.workspaceId,
+      organizationId: orgId,
+    };
+
+    const accessToken = this.jwt.sign(payload);
+
+    return {
+      access_token: accessToken,
+      organization: membership.organization,
+    };
   }
 
   async checkLimit(orgId: string, resource: string) {

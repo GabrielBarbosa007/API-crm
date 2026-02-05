@@ -6,6 +6,8 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ============== USER & AUTH ==============
+
 model User {
   id                   String    @id @default(uuid())
   email                String    @unique
@@ -30,110 +32,43 @@ model User {
 }
 
 model Workspace {
-  id        String   @id @default(uuid())
-  name      String
-  users     User[]
-  leads     Lead[]
-  deals     Deal[]
-  createdAt DateTime @default(now())
-
+  id            String         @id @default(uuid())
+  name          String
+  users         User[]
+  leads         Lead[]
+  deals         Deal[]
   conversations Conversation[]
+  createdAt     DateTime       @default(now())
 }
 
-model Conversation {
-  id          String    @id @default(uuid())
-  phone       String
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  messages    Message[]
-  lead        Lead?
-  createdAt   DateTime  @default(now())
-}
-
-model Message {
-  id             String       @id @default(uuid())
-  content        String
-  fromMe         Boolean
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
-  conversationId String
-  createdAt      DateTime     @default(now())
-}
-
-model Lead {
-  id             String       @id @default(uuid())
-  name           String?
-  phone          String
-  temperature    String?
-  workspaceId    String
-  workspace      Workspace    @relation(fields: [workspaceId], references: [id])
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
-  conversationId String       @unique
-  deal           Deal?
-  createdAt      DateTime     @default(now())
-}
-
-model Deal {
-  id          String    @id @default(uuid())
-  stage       String
-  value       Float?
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  lead        Lead      @relation(fields: [leadId], references: [id])
-  leadId      String    @unique
-  createdAt   DateTime  @default(now())
-}
-
-model WhatsappAccount {
-  id          String   @id @default(uuid())
-  phoneNumber String
-  token       String
-  workspaceId String
-  organizationId String?
-  createdAt   DateTime @default(now())
-}
-
-model Plan {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  displayName String
-  price       Decimal  @default(0)
-  maxUsers        Int @default(2)
-  maxDeals        Int @default(50)
-  maxPipelines    Int @default(1)
-  maxContacts     Int @default(500)
-  maxAutomations  Int @default(5)
-  features    Json     @default("[]")
-  organizations Organization[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
+// ============== ORGANIZATION ==============
 
 model Organization {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  logo        String?
-  planId      String
-  plan        Plan     @relation(fields: [planId], references: [id])
+  id                 String   @id @default(uuid())
+  name               String
+  slug               String   @unique
+  logo               String?
+  planId             String
+  plan               Plan     @relation(fields: [planId], references: [id])
   whatsappPhoneId    String?
   whatsappToken      String?
-  whatsappVerified   Boolean @default(false)
-  settings    Json     @default("{}")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  members     OrganizationMember[]
-  invites     OrganizationInvite[]
-  pipelines   Pipeline[]
-  contacts    Contact[]
-  leads       Lead[]
-  deals       Deal[]
-  conversations Conversation[]
+  whatsappVerified   Boolean  @default(false)
+  settings           Json     @default("{}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  members            OrganizationMember[]
+  invites            OrganizationInvite[]
+  pipelines          Pipeline[]
+  contacts           Contact[]
+  companies          Company[]
+  leads              Lead[]
+  deals              Deal[]
+  conversations      Conversation[]
+  products           Product[]
+  customFields       CustomField[]
+  lostReasons        LostReason[]
+
   @@index([slug])
 }
 
@@ -148,48 +83,390 @@ model OrganizationMember {
   isActive        Boolean  @default(true)
   joinedAt        DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  assignedLeads      Lead[]
+  assignedDeals      Deal[]
+  pipelineMembers    PipelineMember[]
+  createdActivities  Activity[]  @relation("CreatedActivities")
+  assignedActivities Activity[]  @relation("AssignedActivities")
+  dealEvents         DealEvent[]
+
   @@unique([userId, organizationId])
   @@index([organizationId])
   @@index([userId])
 }
 
 model OrganizationInvite {
-  id              String   @id @default(uuid())
+  id              String       @id @default(uuid())
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   email           String
-  role            Role     @default(MEMBER)
-  token           String   @unique
+  role            Role         @default(MEMBER)
+  token           String       @unique
   invitedById     String
-  invitedBy       User     @relation(fields: [invitedById], references: [id])
+  invitedBy       User         @relation(fields: [invitedById], references: [id])
   status          InviteStatus @default(PENDING)
   expiresAt       DateTime
-  createdAt       DateTime @default(now())
+  createdAt       DateTime     @default(now())
   acceptedAt      DateTime?
+
   @@unique([organizationId, email])
   @@index([token])
   @@index([email])
 }
 
-model Pipeline {
+model Plan {
   id             String   @id @default(uuid())
-  name           String
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String   @unique
+  displayName    String
+  price          Decimal  @default(0)
+  maxUsers       Int      @default(2)
+  maxDeals       Int      @default(50)
+  maxPipelines   Int      @default(1)
+  maxContacts    Int      @default(500)
+  maxAutomations Int      @default(5)
+  features       Json     @default("[]")
+  organizations  Organization[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+// ============== PIPELINE & STAGES ==============
+
+model Pipeline {
+  id             String           @id @default(uuid())
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  isDefault      Boolean          @default(false)
+  visibility     PipelineVisibility @default(PUBLIC)
+  position       Int              @default(0)
+  stages         Stage[]
+  deals          Deal[]
+  members        PipelineMember[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([organizationId])
+}
+
+model Stage {
+  id         String   @id @default(uuid())
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  name       String
+  color      String   @default("#6366f1")
+  position   Int      @default(0)
+  isWon      Boolean  @default(false)
+  isLost     Boolean  @default(false)
+  deals      Deal[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([pipelineId])
+  @@index([position])
+}
+
+model PipelineMember {
+  id         String             @id @default(uuid())
+  pipelineId String
+  pipeline   Pipeline           @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  memberId   String
+  member     OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  canEdit    Boolean            @default(false)
+  createdAt  DateTime           @default(now())
+
+  @@unique([pipelineId, memberId])
+  @@index([pipelineId])
+  @@index([memberId])
+}
+
+// ============== LEADS ==============
+
+model Lead {
+  id             String          @id @default(uuid())
+  name           String?
+  phone          String
+  email          String?
+  temperature    LeadTemperature @default(COLD)
+  status         LeadStatus      @default(NEW)
+  priority       LeadPriority    @default(MEDIUM)
+  source         LeadSource      @default(MANUAL)
+  notes          String?
+  workspaceId    String
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id])
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversationId String?         @unique
+  conversation   Conversation?   @relation(fields: [conversationId], references: [id])
+  assignedToId   String?
+  assignedTo     OrganizationMember? @relation(fields: [assignedToId], references: [id])
+  deals          Deal[]
+  activities     Activity[]
+  customFieldValues CustomFieldValue[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([phone, organizationId])
+  @@unique([email, organizationId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([temperature])
+  @@index([assignedToId])
+}
+
+// ============== DEALS ==============
+
+model Deal {
+  id               String     @id @default(uuid())
+  title            String?
+  value            Float?
+  notes            String?
+  workspaceId      String
+  workspace        Workspace  @relation(fields: [workspaceId], references: [id])
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId           String
+  lead             Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  pipelineId       String?
+  pipeline         Pipeline?  @relation(fields: [pipelineId], references: [id])
+  stageId          String?
+  stage            Stage?     @relation(fields: [stageId], references: [id])
+  assignedToId     String?
+  assignedTo       OrganizationMember? @relation(fields: [assignedToId], references: [id])
+  contactId        String?
+  contact          Contact?   @relation(fields: [contactId], references: [id])
+  companyId        String?
+  company          Company?   @relation(fields: [companyId], references: [id])
+  lostReasonId     String?
+  lostReason       LostReason? @relation(fields: [lostReasonId], references: [id])
+  stageEnteredAt   DateTime?
+  lastActivityAt   DateTime?
+  expectedCloseDate DateTime?
+  closedAt         DateTime?
+  probability      Int?       @default(50)
+  activities       Activity[]
+  products         DealProduct[]
+  customFieldValues CustomFieldValue[]
+  events           DealEvent[]
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([stageId])
+  @@index([pipelineId])
+  @@index([assignedToId])
+}
+
+model DealEvent {
+  id        String   @id @default(uuid())
+  dealId    String
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  type      DealEventType
+  data      Json
+  userId    String
+  user      OrganizationMember @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([dealId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model LostReason {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  position       Int          @default(0)
+  deals          Deal[]
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+// ============== ACTIVITIES ==============
+
+model Activity {
+  id           String       @id @default(uuid())
+  dealId       String?
+  deal         Deal?        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  leadId       String?
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type         ActivityType
+  title        String
+  description  String?
+  dueDate      DateTime?
+  completedAt  DateTime?
+  createdById  String
+  createdBy    OrganizationMember @relation("CreatedActivities", fields: [createdById], references: [id])
+  assignedToId String?
+  assignedTo   OrganizationMember? @relation("AssignedActivities", fields: [assignedToId], references: [id])
+  organizationId String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([dealId])
+  @@index([leadId])
+  @@index([type])
+  @@index([dueDate])
+  @@index([completedAt])
+  @@index([organizationId])
+}
+
+// ============== PRODUCTS ==============
+
+model Product {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  sku            String?
+  price          Decimal
+  cost           Decimal?
+  isActive       Boolean  @default(true)
+  category       String?
+  dealProducts   DealProduct[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([sku, organizationId])
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model DealProduct {
+  id        String  @id @default(uuid())
+  dealId    String
+  deal      Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+  unitPrice Decimal
+  discount  Decimal @default(0)
+  total     Decimal
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dealId, productId])
+  @@index([dealId])
+  @@index([productId])
+}
+
+// ============== CUSTOM FIELDS ==============
+
+model CustomField {
+  id             String          @id @default(uuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entity         CustomFieldEntity
+  name           String
+  label          String
+  type           CustomFieldType
+  options        Json?
+  isRequired     Boolean         @default(false)
+  position       Int             @default(0)
+  values         CustomFieldValue[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([organizationId, entity, name])
+  @@index([organizationId])
+  @@index([entity])
+}
+
+model CustomFieldValue {
+  id            String      @id @default(uuid())
+  customFieldId String
+  customField   CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
+  entityId      String
+  value         String
+  dealId        String?
+  deal          Deal?       @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  leadId        String?
+  lead          Lead?       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([customFieldId, entityId])
+  @@index([customFieldId])
+  @@index([entityId])
+}
+
+// ============== CONTACTS & COMPANIES ==============
 
 model Contact {
   id             String   @id @default(uuid())
   name           String?
   phone          String?
   email          String?
+  position       String?
+  companyId      String?
+  company        Company? @relation(fields: [companyId], references: [id])
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deals          Deal[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([companyId])
 }
+
+model Company {
+  id             String   @id @default(uuid())
+  name           String
+  domain         String?
+  industry       String?
+  size           String?
+  website        String?
+  phone          String?
+  address        String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts       Contact[]
+  deals          Deal[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+// ============== COMMUNICATION ==============
+
+model Conversation {
+  id             String       @id @default(uuid())
+  phone          String
+  workspaceId    String
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id])
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  messages       Message[]
+  lead           Lead?
+  createdAt      DateTime     @default(now())
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  content        String
+  fromMe         Boolean
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  createdAt      DateTime     @default(now())
+}
+
+model WhatsappAccount {
+  id             String   @id @default(uuid())
+  phoneNumber    String
+  token          String
+  workspaceId    String
+  organizationId String?
+  createdAt      DateTime @default(now())
+}
+
+// ============== ENUMS ==============
 
 enum Role {
   OWNER
@@ -204,4 +481,79 @@ enum InviteStatus {
   ACCEPTED
   EXPIRED
   CANCELLED
+}
+
+enum LeadTemperature {
+  COLD
+  WARM
+  HOT
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum LeadPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum LeadSource {
+  MANUAL
+  WHATSAPP
+  WEBSITE
+  REFERRAL
+  CAMPAIGN
+  SOCIAL_MEDIA
+  OTHER
+}
+
+enum PipelineVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  TASK
+  NOTE
+  WHATSAPP
+  PROPOSAL_SENT
+  VISIT
+}
+
+enum CustomFieldEntity {
+  DEAL
+  LEAD
+  CONTACT
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+  CHECKBOX
+  CURRENCY
+  TEXTAREA
+}
+
+enum DealEventType {
+  CREATED
+  UPDATED
+  STAGE_CHANGED
+  WON
+  LOST
+  ASSIGNED
+  ACTIVITY_ADDED
+  PRODUCT_ADDED
+  NOTE_ADDED
 }
